@@ -16,7 +16,7 @@ const medicalProfileSchema = new Schema(
     owner: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
-        required: [true, 'Name is required.'],
+        required: true
     },
 
     categories: {
@@ -24,8 +24,20 @@ const medicalProfileSchema = new Schema(
     },
 
     sharedWith: [ {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User"
+
+      user: { 
+        type: Schema.Types.ObjectId, 
+        ref: "User", 
+        required: true
+      },
+      
+      permission: { 
+        type: String, 
+        enum: ["editor", "viewer"],
+        default: "viewer",
+        required: true
+      }
+       
 
     }],
   },

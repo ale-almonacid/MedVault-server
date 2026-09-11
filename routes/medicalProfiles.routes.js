@@ -1,0 +1,158 @@
+const express = require("express")
+const router = require("express").Router();
+
+//model
+const MedicalProfile = require("../models/MedicalProfile.model");
+
+// Authentication middleware
+const { verifyToken } = require("../middleware/auth.middleware");
+
+//Routes
+
+// GET all medical profiles of a user (/api/medical-profiles)
+router.get("/", verifyToken, async (req, res, next) =>{
+
+    try {
+        const userId = req.payload._id;   
+        const response = await MedicalProfile.find({
+
+            $or:[{owner: userId },{ "sharedWith.user": userId }] 
+        })
+        res.status(200).json(response)  
+    }   catch (error) {
+        next (error)
+    }
+})
+
+// GET 1 medical profile details (/api/medical-profiles/:medicalProfileId)
+
+router.get("/:medicalProfileId", verifyToken, async (req, res, next) =>{
+
+    try {
+        const userId = req.payload._id;   
+        const response = await MedicalProfile.findOne({
+            _id: req.params.medicalProfileId, // explicit id is better 
+            $or:[{owner: userId },{ "sharedWith.user": userId }] 
+        })
+        res.status(200).json(response)  
+    }   catch (error) {
+        next (error)
+    }
+})
+
+// POST Create a medical profile (/api/medical-profiles)
+
+router.post("/", verifyToken, async (req, res, next ) =>{
+
+    try {
+       const userId = req.payload._id;
+       const {subjectName, description, categories, sharedWith} = req.body  // no need to destructure owner because here is only for the user editable fields 
+       const response = await MedicalProfile.create({
+        subjectName,
+        description,
+        owner: userId, // Force owner to be the authenticated user
+        categories, 
+        sharedWith
+       })
+       res.status(201).json(response); 
+    } catch (error) {
+        next (error)
+    }
+
+
+
+})
+
+// PATCH Edit Basic Profile Info (Name & Description) (/api/medical-profiles/:medicalProfileId)
+
+router.patch("/:medicalProfileId", verifyToken, async (req, res, next) =>{
+
+    try {
+        const userId = req.payload._id;
+        const { medicalProfileId } = req.params;
+        const {subjectName, description} = req.body  
+
+        const response = await MedicalProfile.findOneAndUpdate({
+            _id: medicalProfileId,
+            $or:[{owner: userId},{sharedWith:{ $elemMatch: { user: userId, permission: "editor" }}}],
+        },{
+            subjectName,
+            description,
+        },{
+            runValidators: true, 
+            returnDocument: "after"
+        })
+        
+        if(!response){
+           res.status(404).json({ message: "Medical profile not found or permission denied." })   
+           return
+        }
+
+        res.status(200).json(response)  
+
+
+    }   catch (error) {
+        next (error)
+    }
+})
+
+// PATCH Edit (add and remove) categories of profile (/api/medical-profiles/:medicalProfileId/categories)
+
+router.patch("/:medicalProfileId/categories", verifyToken, async (req, res, next) =>{
+
+    try {
+        const userId = req.payload._id;
+        const { medicalProfileId } = req.params;
+        const {categories} = req.body  
+
+        const response = await MedicalProfile.findOneAndUpdate({
+            _id: medicalProfileId,
+            $or:[{owner: userId},{sharedWith:{ $elemMatch: { user: userId, permission: "editor" }}}],
+        },{
+            categories,
+        },{
+            runValidators: true, 
+            returnDocument: "after"
+        })
+        
+        if(!response){
+           res.status(404).json({ message: "Medical profile not found or permission denied." })   
+           return
+        }
+
+        res.status(200).json(response)  
+
+
+    }   catch (error) {
+        next (error)
+    }
+})
+
+//DELETE  Delete a medical profile (/api/medical-profiles/:medicalProfileId)
+
+router.delete("/:medicalProfileId", verifyToken,  async (req, res, next ) =>{
+   
+    try {
+        const userId = req.payload._id;   
+        const response = await MedicalProfile.findOneAndDelete({
+            _id: req.params.medicalProfileId, 
+            $or:[{owner: userId},{sharedWith:{ $elemMatch: { user: userId, permission: "editor" }}}] 
+        })
+
+        if (!response) {
+        return res.status(404).json({ message: "Medical profile not found or permission denied." });
+        }
+
+        res.status(200).json({ message: "Medical profile deleted successfully." })  
+    }   catch (error) {
+        next (error)
+    }
+    
+})
+
+
+
+
+
+// export
+module.exports = router 
