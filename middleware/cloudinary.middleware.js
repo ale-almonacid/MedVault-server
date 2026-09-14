@@ -10,13 +10,27 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_SECRET,
 });
 
-const storage = new CloudinaryStorage({
+// Storage for Avatars
+const avatarStorage = new CloudinaryStorage({
   cloudinary,
   params: {
-    allowed_formats: ["jpg", "png"],
-    folder: "my-app", // The name of the folder where images will be stored in cloudinary
-    // resource_type: 'raw' => this is in case you want to upload other type of files, not just images
+    allowed_formats: ["jpg", "png", "jpeg"],
+    folder: "medvault-avatars", 
   },
 });
 
-module.exports = multer({ storage });
+// Storage for Documents
+const documentStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    allowed_formats: ["jpg", "png", "jpeg", "pdf"],
+    folder: "medvault-documents", 
+    resource_type: "auto",         
+  },
+});
+
+module.exports = {
+  uploadAvatar: multer({ storage: avatarStorage }),
+  uploadDocument: multer({ storage: documentStorage }),
+  cloudinary, // Exported to allow physical file deletion via SDK on DELETE
+};

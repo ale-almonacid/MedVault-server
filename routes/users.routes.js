@@ -13,6 +13,9 @@ const MedicalProfile = require("../models/MedicalProfile.model");
 // Authentication middleware
 const { verifyToken } = require("../middleware/auth.middleware");
 
+//Cloudinary middleware
+const { uploadAvatar } = require("../middleware/cloudinary.middleware");
+
 //------------------ Routes -------------------------
 
 // GET Fetch user details (/api/users/me)
@@ -33,20 +36,20 @@ router.get("/me", verifyToken, async (req, res, next) => {
 });
 
 
-// PATCH Basic details Name / Avatar Edit (/api/users/me)
+// PATCH  Edit username (/api/users/me)
 router.patch("/me", verifyToken, async (req, res, next) => {
-    
+
     try {
-        
+
         const userId = req.payload._id;
-        const {username, avatar} = req.body 
-    
+        const {username} = req.body
+
         const response = await User.findByIdAndUpdate(
             userId,
-            {username, avatar},
+            {username},
             {
             runValidators: true,
-            returnDocument: "after",
+            new: true,
           },
         ).select("-password"); // Excludes password hash from response
 
@@ -60,6 +63,36 @@ router.patch("/me", verifyToken, async (req, res, next) => {
     next(error);
    }
 })
+
+
+// PATCH Update user avatar (/api/users/me/avatar)
+
+router.patch("/me/avatar", verifyToken, uploadAvatar.single("avatar"), 
+    async (req, res, next) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No avatar image provided." });
+      }
+
+      const updatedUser = await User.findByIdAndUpdate(
+        req.payload._id,
+        { avatar: req.file.path }, // Direct path from Cloudinary
+         {
+            runValidators: true,
+            new: true,
+          },
+      ).select("-password");
+
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      res.status(200).json(updatedUser);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 
 // PATCH Change password (/api/users/me/change-password)
@@ -130,7 +163,7 @@ router.patch("/me/change-email", verifyToken, async (req, res, next) => {
             {email},
             {
             runValidators: true,
-            returnDocument: "after",
+            new: true,
           },
         ).select("-password"); // Excludes password hash from response
 
