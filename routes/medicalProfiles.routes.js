@@ -15,7 +15,7 @@ router.get("/", verifyToken, async (req, res, next) => {
   try {
     const userId = req.payload._id;
     const response = await MedicalProfile.find({
-      $or: [{ owner: userId }, { "sharedWith.user": userId }],
+      $or: [{ editors: userId }, { viewers: userId }],
     });
     res.status(200).json(response);
   } catch (error) {
@@ -30,7 +30,7 @@ router.get("/:medicalProfileId", verifyToken, async (req, res, next) => {
     const userId = req.payload._id;
     const response = await MedicalProfile.findOne({
       _id: req.params.medicalProfileId, // explicit id is better
-      $or: [{ owner: userId }, { "sharedWith.user": userId }],
+      $or: [{ editors: userId }, { viewers: userId }],
     });
     res.status(200).json(response);
   } catch (error) {
@@ -47,9 +47,9 @@ router.post("/", verifyToken, async (req, res, next) => {
     const response = await MedicalProfile.create({
       subjectName,
       description,
-      owner: userId, // Force owner to be the authenticated user
       categories,
-      sharedWith,
+      editors: [userId], // Authenticated user starts as the primary editor
+      viewers:[],
     });
     res.status(201).json(response);
   } catch (error) {
@@ -66,23 +66,12 @@ router.patch("/:medicalProfileId", verifyToken, async (req, res, next) => {
     const { subjectName, description } = req.body;
 
     const response = await MedicalProfile.findOneAndUpdate(
-      {
+    {
         _id: medicalProfileId,
-        $or: [
-          { owner: userId },
-          {
-            sharedWith: { $elemMatch: { user: userId, permission: "editor" } },
-          },
-        ],
+        editors: userId, // Must be an editor to update
       },
-      {
-        subjectName,
-        description,
-      },
-      {
-        runValidators: true,
-        returnDocument: "after",
-      },
+      { subjectName, description },
+      { runValidators: true, returnDocument: "after" }
     );
 
     if (!response) {
@@ -112,14 +101,8 @@ router.patch(
       const response = await MedicalProfile.findOneAndUpdate(
         {
           _id: medicalProfileId,
-          $or: [
-            { owner: userId },
-            {
-              sharedWith: {
-                $elemMatch: { user: userId, permission: "editor" },
-              },
-            },
-          ],
+          editors: userId,
+          
         },
         {
           categories,
@@ -149,12 +132,10 @@ router.patch(
 router.delete("/:medicalProfileId", verifyToken, async (req, res, next) => {
   try {
     const userId = req.payload._id;
+    const { medicalProfileId } = req.params;
     const response = await MedicalProfile.findOneAndDelete({
-      _id: req.params.medicalProfileId,
-      $or: [
-        { owner: userId },
-        { sharedWith: { $elemMatch: { user: userId, permission: "editor" } } },
-      ],
+      _id: medicalProfileId,
+      editors: userId,
     });
 
     if (!response) {
@@ -181,8 +162,11 @@ router.post("/:medicalProfileId/share", verifyToken, async (req, res, next) => {
   try {
     const userId = req.payload._id;
     const { medicalProfileId } = req.params;
-    const { emailToShareWith, permission } = req.body;
+    const { emailToShareWith, role } = req.body;
 
+    if (!["editor", "viewer"].includes(role)) {
+      return res.status(400).json({ message: "Role must be 'editor' or 'viewer'." });
+    }
 
     // Find the user by email to get their _id
     const userToShareWith = await User.findOne({ email: emailToShareWith });
@@ -190,16 +174,22 @@ router.post("/:medicalProfileId/share", verifyToken, async (req, res, next) => {
       return res.status(404).json({ message: "User with that email does not exist." });
     }
 
+    const recipientId = userToShareWith._id;
+
+    // 2. Prevent adding a user to both lists simultaneously
+    const targetArray = role === "editor" ? "editors" : "viewers";
+    const oppositeArray = role === "editor" ? "viewers" : "editors";
+
     const response = await MedicalProfile.findOneAndUpdate(
       {
         _id: medicalProfileId,
-        "sharedWith.user": { $ne: userToShareWith._id}, // <--- Blocks duplicate users!
-        $or: [
-          { owner: userId },
-          {sharedWith: { $elemMatch: { user: userId, permission: "editor" } },},
-        ],
+        editors: userId, // Requesting user must be an editor
       },
-      {$push: { sharedWith: { user: userToShareWith._id, permission } },},
+      {
+        $addToSet: { [targetArray]: recipientId }, // Adds without creating duplicates
+        $pull: { [oppositeArray]: recipientId },    // Removes from other list if present
+      },
+      
       { runValidators: true, returnDocument: "after" },
     );
 
@@ -208,40 +198,47 @@ router.post("/:medicalProfileId/share", verifyToken, async (req, res, next) => {
         .status(404)
         .json({ message: "Medical profile not found or permission denied." });
     }
-    res.status(200).json({ message: "permission granted", profile: response });
+    res.status(200).json({ message: `permission granted as ${role}.`, profile: response });
   } catch (error) {
     next(error);
   }
 });
 
 
-//PATCH Update Delegate Permission (/api/medical-profiles/:medicalProfileId/share/:recipientUserId)
+//PATCH Update Permission (Switch between 'editor' and 'viewer') (/api/medical-profiles/:medicalProfileId/share/:recipientUserId)
 
 router.patch("/:medicalProfileId/share/:recipientUserId", verifyToken, async (req, res, next) => {
   try {
     const userId = req.payload._id;
     const { medicalProfileId, recipientUserId } = req.params;
-    const { permission } = req.body;
+    const { role } = req.body;
+
+    if (!["editor", "viewer"].includes(role)) {
+      return res.status(400).json({ message: "Role must be 'editor' or 'viewer'." });
+    }
+
+    const targetArray = role === "editor" ? "editors" : "viewers";
+    const oppositeArray = role === "editor" ? "viewers" : "editors";
 
     const response = await MedicalProfile.findOneAndUpdate(
       {
         _id: medicalProfileId,
-        "sharedWith.user": recipientUserId, // <--- Blocks duplicate users!
-        $or: [
-          { owner: userId },
-          {sharedWith: { $elemMatch: { user: userId, permission: "editor" } },},
-        ],
+        editors: userId,
       },
-      {$set: { "sharedWith.$.permission": permission }},
+      {
+        $addToSet: { [targetArray]: recipientUserId },
+        $pull: { [oppositeArray]: recipientUserId },
+      },
+      
       { runValidators: true, returnDocument: "after" },
     );
 
     if (!response) {
       return res
         .status(404)
-        .json({ message: "Medical profile or shared user not found not found, or permission denied." });
+        .json({ message: "Medical profile not found or permission denied." });
     }
-    res.status(200).json({ message: "permission updated" });
+    res.status(200).json({ message: `Role updated to ${role}.` });
   } catch (error) {
     next(error);
   }
@@ -259,12 +256,15 @@ router.delete("/:medicalProfileId/share/:recipientUserId", verifyToken, async (r
     const response = await MedicalProfile.findOneAndUpdate(
         {
         _id: medicalProfileId,
-        $or: [
-          { owner: userId },
-          {sharedWith: { $elemMatch: { user: userId, permission: "editor" } },},
-        ],
+        editors: userId,
       },
-      {$pull: { sharedWith: { user: recipientUserId }},},
+        {
+        $pull: {
+          editors: recipientUserId,
+          viewers: recipientUserId,
+        },
+      },
+      
       { runValidators: true, returnDocument: "after" },
     );
 

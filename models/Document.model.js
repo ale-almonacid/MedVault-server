@@ -21,8 +21,13 @@ const documentSchema = new Schema(
 
     
     fileUrl: {
-        type: [String],
+        type: String,
         required: [true, 'file is required.'],
+    },
+
+    // Saved to easily purge files from Cloudinary on DELETE
+    cloudinaryPublicId: {
+      type: String,
     },
     
     language: {

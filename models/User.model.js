@@ -18,6 +18,11 @@ const userSchema = new Schema(
     username: {
       type: String,
       required: [true, 'username is required.'],
+    },
+
+    avatar:{
+      type: String,
+      default: "https://res.cloudinary.com/demo/image/upload/v1/default-avatar.png", // replace later form cloudiranry
     }
   },
   {

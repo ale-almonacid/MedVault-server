@@ -13,33 +13,26 @@ const medicalProfileSchema = new Schema(
       type: String,
     },
 
-    owner: {
+    editors: [
+      {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true
-    },
+      }
+    ],
+
+    viewers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    ],
 
     categories: {
       type: [String],
     },
 
-    sharedWith: [ {
-
-      user: { 
-        type: Schema.Types.ObjectId, 
-        ref: "User", 
-        required: true
-      },
-      
-      permission: { 
-        type: String, 
-        enum: ["editor", "viewer"],
-        default: "viewer",
-        required: true
-      }
-       
-
-    }],
+    
   },
   {
     // this second object adds extra properties: `createdAt` and `updatedAt`    

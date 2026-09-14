@@ -25,7 +25,7 @@ router.post("/signup", async(req, res, next) =>{
     }
     
     //pasword strength
-    let passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$/gm
+    let passwordRegex = /^(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$/m
     if (passwordRegex.test(password) === false){
         res.status(400).json({errorMessage:"password is not strong enough. needs at least 8 characters, one uppercase, one lowercase and one number"})
         return // to make it a guard clause
