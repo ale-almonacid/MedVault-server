@@ -125,7 +125,7 @@ router.post("/", verifyToken, uploadDocument.single("file"), async (req, res, ne
 
 // PATCH Edit Document information (/api/documents/:documentId)
 
-router.patch("/:documentId", verifyToken, async (req, res, next) => {
+router.patch("/:documentId", verifyToken, uploadDocument.single("file"), async (req, res, next) => {
   try {
     const { documentId } = req.params;
     const userId = req.payload._id;
@@ -152,6 +152,22 @@ router.patch("/:documentId", verifyToken, async (req, res, next) => {
     if (category) updateData.category = category;
     if (language) updateData.language = language;
     if (notes !== undefined) updateData.notes = notes;
+
+    // for files 
+      if (req.file) {
+        // Delete the old file from Cloudinary to clean up storage
+        if (document.cloudinaryPublicId) {
+          const isPdf = document.fileUrl.toLowerCase().endsWith(".pdf");
+          await cloudinary.uploader.destroy(document.cloudinaryPublicId, {
+            resource_type: isPdf ? "raw" : "image",
+          });
+        }
+
+        // Set the new file details in the update payload
+        updateData.fileUrl = req.file.path;
+        updateData.cloudinaryPublicId = req.file.filename;
+      }
+
 
     const updatedDocument = await Document.findByIdAndUpdate(
       documentId,
