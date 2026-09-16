@@ -97,10 +97,14 @@ router.post("/login", async(req, res, next) =>{
         // continue here...
 
         const payload ={
+            
             _id: foundUser._id,
-            email: foundUser.email
-            // if we have roles, we would need to add role of the user here 
+            email: foundUser.email,
+            username: foundUser.username,
+            avatar: foundUser.avatar || null // Optional field from User model
         }
+            // if we have roles, we would need to add role of the user here 
+        
 
         const authToken = jwt.sign(payload, process.env.TOKEN_SECRET,{ // in .env defined
            expiresIn: "7d" 

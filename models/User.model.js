@@ -22,7 +22,7 @@ const userSchema = new Schema(
 
     avatar:{
       type: String,
-      default: "https://res.cloudinary.com/demo/image/upload/v1/default-avatar.png", // replace later form cloudiranry
+      default: "https://res.cloudinary.com/w0hsyj9p/image/upload/v1789573770/avatar-default.svg", // replace later form cloudiranry
     }
   },
   {
