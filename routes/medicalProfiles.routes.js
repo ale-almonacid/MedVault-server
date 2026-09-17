@@ -16,7 +16,9 @@ router.get("/", verifyToken, async (req, res, next) => {
     const userId = req.payload._id;
     const response = await MedicalProfile.find({
       $or: [{ editors: userId }, { viewers: userId }],
-    });
+    })
+      .populate("editors", "username avatar")
+      .populate("viewers", "username avatar");
     res.status(200).json(response);
   } catch (error) {
     next(error);
@@ -31,7 +33,9 @@ router.get("/:medicalProfileId", verifyToken, async (req, res, next) => {
     const response = await MedicalProfile.findOne({
       _id: req.params.medicalProfileId, // explicit id is better
       $or: [{ editors: userId }, { viewers: userId }],
-    });
+    })
+      .populate("editors", "username avatar")
+      .populate("viewers", "username avatar");
     res.status(200).json(response);
   } catch (error) {
     next(error);
